@@ -2,7 +2,7 @@
 CXX = g++
 INCS += -I .. -I ../external/cpp/inc
 WARS += -Wall -Wno-unused-variable -Wno-unused-result
-LIBS += -l gmsh -l umfpack -l lapack -l quadrule -l GLEW -l GL -l glut -l freetype
+LIBS += -l gmsh -l umfpack -l lapack -l quadrule -l GLEW -l GL -l glfw -l glut -l freetype
 WARS += -Wno-format-security -Wno-return-type -Wno-unused-function -Wformat-overflow=0
 CXXFLAGS += -std=c++20 -fPIC -pipe -fopenmp -MT $@ -MMD -MP -MF $(subst .o,.d, $@) $(DEFS) $(INCS) $(WARS)
 
