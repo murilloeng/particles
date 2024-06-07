@@ -23,8 +23,6 @@ namespace particles
 		~Particle(void);
 
 		//draw
-		unsigned vbo_size(void) const;
-		unsigned ibo_size(void) const;
 		void draw(unsigned*, float*) const;
 
 		//physics

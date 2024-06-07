@@ -97,12 +97,6 @@ static GLuint create_program(const char* path_vertex, const char* path_fragment)
 //setup
 static void setupGL(void)
 {
-	//data
-	unsigned vbo_size = 0;
-	unsigned ibo_size = 0;
-	//sizes
-	vbo_size += 2 * nb_max;
-	vbo_size += 5 * np_max * particles::Particle::m_nv;
 	//create
 	glGenBuffers(3, vbo);
 	glGenBuffers(3, ibo);
@@ -149,29 +143,27 @@ static void update_buffers(void)
 	const unsigned np = list_particles.size();
 	const unsigned nv = particles::Particle::m_nv;
 	float* vbo_barriers = (float*) alloca(10 * nb * sizeof(float));
-	float* vbo_particles = (float*) alloca(5 * np * nv * sizeof(float));
+	float* vbo_particles = (float*) alloca(5 * nv * np * sizeof(float));
 	unsigned* ibo_barriers = (unsigned*) alloca(2 * nb * sizeof(unsigned));
-	unsigned* ibo_particles = (unsigned*) alloca(3 * np * nv * sizeof(unsigned));
+	unsigned* ibo_particles = (unsigned*) alloca(3 * (nv - 2) * np * sizeof(unsigned));
 	//barriers
 	for(unsigned i = 0; i < list_barriers.size(); i++)
 	{
 		list_barriers[i].draw(ibo_barriers, vbo_barriers);
 	}
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, 10 * nb * sizeof(float), vbo_barriers);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2 * nb * sizeof(unsigned), ibo_barriers);
 	//particles
 	for(unsigned i = 0; i < list_particles.size(); i++)
 	{
 		list_particles[i].draw(ibo_particles, vbo_particles);
 	}
-	//transfer
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, 5 * np * nv * sizeof(float), vbo_particles);
-	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 3 * np * nv * sizeof(unsigned), ibo_particles);
-	//transfer
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, 10 * nb * sizeof(float), vbo_barriers);
-	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2 * nb * sizeof(unsigned), ibo_barriers);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 3 * (nv - 2) * np * sizeof(unsigned), ibo_particles);
 }
 
 //lists

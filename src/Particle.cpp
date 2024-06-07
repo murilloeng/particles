@@ -20,14 +20,6 @@ namespace particles
 	}
 
 	//draw
-	unsigned Particle::vbo_size(void) const
-	{
-		return 5 * m_nv * sizeof(float);
-	}
-	unsigned Particle::ibo_size(void) const
-	{
-		return 3 * (m_nv - 2) * sizeof(unsigned);
-	}
 	void Particle::draw(unsigned* ibo_data, float* vbo_data) const
 	{
 		//ibo data
@@ -68,12 +60,12 @@ namespace particles
 			m_position += h * m_velocity + h * h / 2 * a;
 		}
 		//barriers
-		for(const Barrier& barrier : *m_list_barriers)
-		{
-			//data
-			const math::vec3 x1 = barrier.m_x1;
-			const math::vec3 x2 = barrier.m_x2;
-		}
+		// for(const Barrier& barrier : *m_list_barriers)
+		// {
+		// 	//data
+		// 	const math::vec3 x1 = barrier.m_x1;
+		// 	const math::vec3 x2 = barrier.m_x2;
+		// }
 	}
 
 	//static
