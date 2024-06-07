@@ -15,6 +15,9 @@ namespace particles
 		//destructor
 		~Particle(void);
 
+		//draw
+		void draw(float*, unsigned*) const;
+
 		//data
 		double m_radius;
 		math::vec3 m_position;

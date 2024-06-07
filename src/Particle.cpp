@@ -18,4 +18,10 @@ namespace particles
 	{
 		return;
 	}
+
+	//draw
+	void Particle::draw(float*, unsigned*) const
+	{
+		return;
+	}
 }

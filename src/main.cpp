@@ -1,4 +1,5 @@
 //std
+#include <string>
 #include <cstdio>
 #include <cstdlib>
 
@@ -6,13 +7,129 @@
 #include "external/cpp/inc/GL/glew.h"
 #include "external/cpp/inc/GL/freeglut.h"
 
+//data
+GLuint program;
+
+//shaders
+bool load_file(std::string& source, const char* path)
+{
+	//open
+	FILE* file = fopen(path, "r");
+	//check
+	if(!file) return false;
+	//read
+	source.clear();
+	while(!feof(file)) source += fgetc(file);
+	source.back() = '\0';
+	//close
+	fclose(file);
+	//return
+	return true;
+}
+GLuint compile_shader(GLenum type, const char* source)
+{
+	//data
+	GLuint shader = glCreateShader(type);
+	//source
+	glShaderSource(shader, 1, &source, nullptr);
+	//compile
+	glCompileShader(shader);
+	//check
+	GLint success;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+	//info log
+	if(!success)
+	{
+		char info[512];
+		glGetShaderInfoLog(shader, 512, nullptr, info);
+		fprintf(stderr, "Shader compilation error: %s\n", info);
+	}
+	//return
+	return shader;
+}
+GLuint create_program(const char* path_vertex, const char* path_fragment)
+{
+	//data
+	std::string source_vertex, source_fragment;
+	//sources
+	load_file(source_vertex, path_vertex);
+	load_file(source_fragment, path_fragment);
+	//shaders
+	GLuint shader_vertex = compile_shader(GL_VERTEX_SHADER, source_vertex.c_str());
+	GLuint shader_fragment = compile_shader(GL_FRAGMENT_SHADER, source_fragment.c_str());
+	//program
+	GLuint program = glCreateProgram();
+	glAttachShader(program, shader_vertex);
+	glAttachShader(program, shader_fragment);
+	//check
+	GLint success;
+	glLinkProgram(program);
+	glGetProgramiv(program, GL_LINK_STATUS, &success);
+	//info log
+	if(!success)
+	{
+		char info[512];
+		glGetProgramInfoLog(program, 512, nullptr, info);
+		fprintf(stderr, "Program linking error: %s\n", info);
+	}
+	//delete
+	glUseProgram(program);
+	glDeleteShader(shader_vertex);
+	glDeleteShader(shader_fragment);
+	//return
+	return program;
+}
+
+//setup
+void setupGL(void)
+{
+	//data
+	GLuint VAO, VBO, IBO;
+	const float vbo_data[] = {
+		-0.5f, -0.5f,
+		 0.5f, -0.5f,
+		 0.0f,  0.5f
+	};
+	const unsigned ibo_data[] = {
+		0, 1, 2
+	};
+	//create
+	glGenBuffers(1, &VBO);
+	glGenBuffers(1, &IBO);
+	glGenVertexArrays(1, &VAO);
+	//bind
+	glBindVertexArray(VAO);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vbo_data), vbo_data, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(ibo_data), ibo_data, GL_STATIC_DRAW);
+	//layout
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (unsigned*) (0 * sizeof(float)));
+	//program
+	program = create_program("shd/base.vert", "shd/base.frag");
+}
+
+
 //callbacks
 void callback_display(void)
 {
 	//clear
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//draw
+	glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, nullptr);
 	//buffers
 	glutSwapBuffers();
+}
+void callback_reshape(int width, int height)
+{
+	//viewport
+	glViewport(0, 0, width, height);
+	//uniforms
+	glUniform1ui(glGetUniformLocation(program, "width"), width);
+	glUniform1ui(glGetUniformLocation(program, "height"), height);
+	//redraw
+	glutPostRedisplay();
 }
 void callback_keyboard(unsigned char key, int x1, int x2)
 {
@@ -40,13 +157,14 @@ int main(int argc, char** argv)
 		fprintf(stderr, "Error: can't setup glew!\n");
 		exit(EXIT_FAILURE);
 	}
+	setupGL();
 	//callbacks
 	glutDisplayFunc(callback_display);
+	glutReshapeFunc(callback_reshape);
 	glutKeyboardFunc(callback_keyboard);
 	// glutIdleFunc(callback_idle);
 	// glutMouseFunc(callback_mouse);
 	// glutMotionFunc(callback_motion);
-	// glutReshapeFunc(callback_reshape);
 	// glutSpecialFunc(callback_special);
 	// glutMouseWheelFunc(callback_wheel);
 	//loop
@@ -54,148 +172,3 @@ int main(int argc, char** argv)
 	//return
 	return EXIT_SUCCESS;
 }
-
-// #include <GL/glew.h>
-// #include <GLFW/glfw3.h>
-// #include <iostream>
-// #include <fstream>
-// #include <sstream>
-// #include <string>
-
-// // Function to read shader source code from file
-// std::string readFile(const char* filePath) {
-//     std::ifstream file(filePath);
-//     std::stringstream buffer;
-//     buffer << file.rdbuf();
-//     return buffer.str();
-// }
-
-// // Function to compile a shader
-// GLuint compileShader(GLenum type, const char* source) {
-//     GLuint shader = glCreateShader(type);
-//     glShaderSource(shader, 1, &source, nullptr);
-//     glCompileShader(shader);
-
-//     GLint success;
-//     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-//     if (!success) {
-//         char infoLog[512];
-//         glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-//         std::cerr << "Shader compilation error:\n" << infoLog << std::endl;
-//     }
-//     return shader;
-// }
-
-// // Function to create a shader program
-// GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
-//     std::string vertexCode = readFile(vertexPath);
-//     std::string fragmentCode = readFile(fragmentPath);
-
-//     GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexCode.c_str());
-//     GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentCode.c_str());
-
-//     GLuint shaderProgram = glCreateProgram();
-//     glAttachShader(shaderProgram, vertexShader);
-//     glAttachShader(shaderProgram, fragmentShader);
-//     glLinkProgram(shaderProgram);
-
-//     GLint success;
-//     glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-//     if (!success) {
-//         char infoLog[512];
-//         glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
-//         std::cerr << "Program linking error:\n" << infoLog << std::endl;
-//     }
-
-//     glDeleteShader(vertexShader);
-//     glDeleteShader(fragmentShader);
-
-//     return shaderProgram;
-// }
-
-// int main(void)
-// {
-// 	//setup GLFW
-// 	if(!glfwInit())
-// 	{
-// 		std::cerr << "Failed to initialize GLFW" << std::endl;
-// 		return EXIT_FAILURE;
-// 	}
-// 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-// 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-// 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-// 	GLFWwindow* window = glfwCreateWindow(800, 800, "Triangle", nullptr, nullptr);
-// 	//window
-// 	if(!window)
-// 	{
-// 		std::cerr << "Failed to create GLFW window" << std::endl;
-// 		glfwTerminate();
-// 		return EXIT_FAILURE;
-// 	}
-// 	// Make the window's context current
-// 	glfwMakeContextCurrent(window);
-
-// 	//glew
-// 	if(glewInit() != GLEW_OK)
-// 	{
-// 		std::cerr << "Failed to initialize GLEW" << std::endl;
-// 		return EXIT_FAILURE;
-// 	}
-// 	// Define the vertex data for a triangle
-// 	float vertices[] = {
-// 		-0.5f, -0.5f, 0.0f,
-// 		 0.5f, -0.5f, 0.0f,
-// 		 0.0f,  0.5f, 0.0f
-// 	};
-
-// 	// Create and bind a Vertex Array Object (VAO)
-// 	GLuint VAO;
-// 	glGenVertexArrays(1, &VAO);
-// 	glBindVertexArray(VAO);
-
-// 	// Create and bind a Vertex Buffer Object (VBO)
-// 	GLuint VBO;
-// 	glGenBuffers(1, &VBO);
-// 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-// 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-// 	// Specify the layout of the vertex data
-// 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-// 	glEnableVertexAttribArray(0);
-
-// 	// Unbind the VAO
-// 	glBindVertexArray(0);
-
-// 	// Create the shader program
-// 	GLuint shaderProgram = createShaderProgram("vertex_shader.glsl", "fragment_shader.glsl");
-
-// 	// Main loop
-// 	while (!glfwWindowShouldClose(window)) {
-// 		// Clear the screen
-// 		glClear(GL_COLOR_BUFFER_BIT);
-
-// 		// Use the shader program
-// 		glUseProgram(shaderProgram);
-
-// 		// Bind the VAO
-// 		glBindVertexArray(VAO);
-
-// 		// Draw the triangle
-// 		glDrawArrays(GL_TRIANGLES, 0, 3);
-
-// 		// Unbind the VAO
-// 		glBindVertexArray(0);
-
-// 		// Swap buffers and poll events
-// 		glfwSwapBuffers(window);
-// 		glfwPollEvents();
-// 	}
-
-// 	// Clean up
-// 	glDeleteVertexArrays(1, &VAO);
-// 	glDeleteBuffers(1, &VBO);
-// 	glDeleteProgram(shaderProgram);
-
-// 	glfwTerminate();
-// 	return 0;
-// }
