@@ -20,6 +20,7 @@ namespace particles
 
 		//data
 		double m_radius;
+		float m_color[3];
 		math::vec3 m_position;
 	};
 }
