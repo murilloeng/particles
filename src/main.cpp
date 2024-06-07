@@ -187,8 +187,6 @@ static void add_barrier(math::vec3 x1, math::vec3 x2, math::vec3 color)
 	barrier.m_color = color;
 	//list
 	list_barriers.push_back(barrier);
-	//buffers
-	update_buffers();
 }
 static void add_particle(double radius, math::vec3 color, math::vec3 position, math::vec3 velocity)
 {
@@ -205,8 +203,6 @@ static void add_particle(double radius, math::vec3 color, math::vec3 position, m
 	particle.m_list_particles = &list_particles;
 	//list
 	list_particles.push_back(particle);
-	//buffers
-	update_buffers();
 }
 
 //callbacks
@@ -229,6 +225,10 @@ static void callback_idle(void)
 }
 static void callback_display(void)
 {
+	//data
+	const unsigned nb = list_barriers.size();
+	const unsigned np = list_particles.size();
+	const unsigned nv = particles::Particle::m_nv;
 	//clear
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	//particles
@@ -236,13 +236,13 @@ static void callback_display(void)
 	glBindVertexArray(vao[0]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
-	glDrawElements(GL_TRIANGLES, 3 * list_particles.size() * (particles::Particle::m_nv - 2), GL_UNSIGNED_INT, nullptr);
+	glDrawElements(GL_TRIANGLES, 3 * np * (nv - 2), GL_UNSIGNED_INT, nullptr);
 	//barriers
 	glUseProgram(program[0]);
 	glBindVertexArray(vao[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
-	glDrawElements(GL_LINES, 2 * list_barriers.size(), GL_UNSIGNED_INT, nullptr);
+	glDrawElements(GL_LINES, 2 * nb, GL_UNSIGNED_INT, nullptr);
 	//buffers
 	glutSwapBuffers();
 }
@@ -306,6 +306,8 @@ int main(int argc, char** argv)
 	//setup
 	setupGL();
 	add_barrier({-0.75, -0.50, 0}, {+0.75, -0.50, 0}, {1, 1, 1});
+	add_barrier({-0.75, -0.50, 0}, {-0.75, +0.50, 0}, {1, 1, 1});
+	add_barrier({+0.75, -0.50, 0}, {+0.75, +0.50, 0}, {1, 1, 1});
 	//callbacks
 	glutIdleFunc(callback_idle);
 	glutMouseFunc(callback_mouse);

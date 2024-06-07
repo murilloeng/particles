@@ -31,6 +31,7 @@ namespace particles
 		void update(double);
 
 		//data
+		bool m_status;
 		double m_mass;
 		double m_radius;
 		unsigned m_index;
