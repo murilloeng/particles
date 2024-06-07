@@ -1,8 +1,9 @@
 //std
 #include <cmath>
+#include <ctime>
+#include <chrono>
 #include <string>
 #include <vector>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 
@@ -17,12 +18,13 @@
 //data
 static unsigned width;
 static unsigned height;
+static clock_t timer_cpu;
 static const unsigned nb_max = 100;
 static const unsigned np_max = 1000;
 static GLuint program[2], vao[3], vbo[3], ibo[3];
 static std::vector<particles::Barrier> list_barriers;
 static std::vector<particles::Particle> list_particles;
-static std::chrono::high_resolution_clock::time_point timer;
+static std::chrono::high_resolution_clock::time_point timer_real;
 
 //shaders
 static bool load_file(std::string& source, const char* path)
@@ -126,7 +128,8 @@ static void setupGL(void)
 	//program
 	program[0] = create_program("shd/base.vert", "shd/base.frag");
 	//timer
-	timer = std::chrono::high_resolution_clock::now();
+	timer_cpu = clock();
+	timer_real = std::chrono::high_resolution_clock::now();
 }
 static void cleanupGL(void)
 {
@@ -175,17 +178,20 @@ static void add_particle(double radius, math::vec3 color, math::vec3 position, m
 //callbacks
 static void callback_idle(void)
 {
-	//clock
-	using namespace std::chrono;
-	high_resolution_clock::time_point timer_now = high_resolution_clock::now();
-	int64_t duration = duration_cast<microseconds>(timer_now - timer).count();
+	//timer cpu
+	const clock_t timer_cpu_now = clock();
+	const double duration_cpu = double(timer_cpu_now - timer_cpu) / CLOCKS_PER_SEC;
+	//timer real
+	const std::chrono::high_resolution_clock::time_point timer_real_now = std::chrono::high_resolution_clock::now();
+	int64_t duration_real = std::chrono::duration_cast<std::chrono::microseconds>(timer_real_now - timer_real).count();
 	//timer
-	timer = timer_now;
-	printf("FPS: %.2lf\n", 1e6 / duration);
+	timer_cpu = timer_cpu_now;
+	timer_real = timer_real_now;
+	printf("FPS: %.2lf particles: %5ld\n", 1.0 / duration_cpu, list_particles.size());
 	//update
 	for(particles::Particle& particle : list_particles)
 	{
-		particle.update(duration / 1e6, vbo[1]);
+		particle.update(duration_real / 1e6, vbo[1]);
 	}
 	//draw
 	glutPostRedisplay();
