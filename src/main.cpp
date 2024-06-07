@@ -11,14 +11,17 @@
 #include "external/cpp/inc/GL/freeglut.h"
 
 //particles
+#include "particles/inc/Barrier.hpp"
 #include "particles/inc/Particle.hpp"
 
 //data
-static GLuint program;
 static unsigned width;
 static unsigned height;
+static const unsigned nb_max = 100;
 static const unsigned np_max = 1000;
-static std::vector<particles::Particle> list;
+static GLuint program[2], vao[3], vbo[3], ibo[3];
+static std::vector<particles::Barrier> list_barriers;
+static std::vector<particles::Particle> list_particles;
 static std::chrono::high_resolution_clock::time_point timer;
 
 //shaders
@@ -95,58 +98,113 @@ static GLuint create_program(const char* path_vertex, const char* path_fragment)
 static void setupGL(void)
 {
 	//data
-	GLuint VAO, VBO, IBO;
+	unsigned vbo_size = 0;
+	unsigned ibo_size = 0;
+	//sizes
+	vbo_size += 2 * nb_max;
+	vbo_size += 5 * np_max * particles::Particle::m_nv;
 	//create
-	glGenBuffers(1, &VBO);
-	glGenBuffers(1, &IBO);
-	glGenVertexArrays(1, &VAO);
+	glGenBuffers(3, vbo);
+	glGenBuffers(3, ibo);
+	glGenVertexArrays(3, vao);
 	//bind
-	glBindVertexArray(VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
-	glBufferData(GL_ARRAY_BUFFER, 5 * np_max * particles::Particle::m_nv * sizeof(float), nullptr, GL_STATIC_DRAW);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * np_max * (particles::Particle::m_nv - 2) * sizeof(unsigned), nullptr, GL_STATIC_DRAW);
+	glBindVertexArray(vao[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
+	glBufferData(GL_ARRAY_BUFFER, 5 * np_max * particles::Particle::m_nv * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * np_max * (particles::Particle::m_nv - 2) * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
+	//layout
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (0 * sizeof(float)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (2 * sizeof(float)));
+	//bind
+	glBindVertexArray(vao[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
+	glBufferData(GL_ARRAY_BUFFER, 10 * nb_max * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2 * nb_max * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
 	//layout
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (0 * sizeof(float)));
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (2 * sizeof(float)));
 	//program
-	program = create_program("shd/base.vert", "shd/base.frag");
+	program[0] = create_program("shd/base.vert", "shd/base.frag");
 	//timer
 	timer = std::chrono::high_resolution_clock::now();
+}
+static void cleanupGL(void)
+{
+	glDeleteBuffers(3, vbo);
+	glDeleteBuffers(3, ibo);
+	glDeleteProgram(program[0]);
+	glDeleteProgram(program[1]);
+	glDeleteVertexArrays(3, vao);
 }
 static void update_buffers(void)
 {
 	//data
-	const unsigned np = list.size();
+	const unsigned nb = list_barriers.size();
+	const unsigned np = list_particles.size();
 	const unsigned nv = particles::Particle::m_nv;
-	float* vbo_data = (float*) alloca(5 * np * nv * sizeof(float));
-	unsigned* ibo_data = (unsigned*) alloca(3 * np * nv * sizeof(float));
-	//buffers
-	for(unsigned i = 0; i < list.size(); i++)
+	float* vbo_barriers = (float*) alloca(10 * nb * sizeof(float));
+	float* vbo_particles = (float*) alloca(5 * np * nv * sizeof(float));
+	unsigned* ibo_barriers = (unsigned*) alloca(2 * nb * sizeof(unsigned));
+	unsigned* ibo_particles = (unsigned*) alloca(3 * np * nv * sizeof(unsigned));
+	//barriers
+	for(unsigned i = 0; i < list_barriers.size(); i++)
 	{
-		list[i].draw(ibo_data, vbo_data);
+		list_barriers[i].draw(ibo_barriers, vbo_barriers);
+	}
+	//particles
+	for(unsigned i = 0; i < list_particles.size(); i++)
+	{
+		list_particles[i].draw(ibo_particles, vbo_particles);
 	}
 	//transfer
-	glBufferSubData(GL_ARRAY_BUFFER, 0, 5 * np * nv * sizeof(float), vbo_data);
-	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 3 * np * nv * sizeof(unsigned), ibo_data);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, 5 * np * nv * sizeof(float), vbo_particles);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 3 * np * nv * sizeof(unsigned), ibo_particles);
+	//transfer
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, 10 * nb * sizeof(float), vbo_barriers);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2 * nb * sizeof(unsigned), ibo_barriers);
 }
 
-//particles
+//lists
+static void add_barrier(math::vec3 x1, math::vec3 x2, math::vec3 color)
+{
+	//data
+	particles::Barrier barrier;
+	const unsigned nb = list_barriers.size();
+	//setup
+	barrier.m_x1 = x1;
+	barrier.m_x2 = x2;
+	barrier.m_index = nb;
+	barrier.m_color = color;
+	//list
+	list_barriers.push_back(barrier);
+	//buffers
+	update_buffers();
+}
 static void add_particle(double radius, math::vec3 color, math::vec3 position, math::vec3 velocity)
 {
 	//data
 	particles::Particle particle;
-	const unsigned np = list.size();
+	const unsigned np = list_particles.size();
 	//setup
 	particle.m_index = np;
 	particle.m_color = color;
 	particle.m_radius = radius;
 	particle.m_position = position;
 	particle.m_velocity = velocity;
+	particle.m_list_barriers = &list_barriers;
+	particle.m_list_particles = &list_particles;
 	//list
-	list.push_back(particle);
+	list_particles.push_back(particle);
 	//buffers
 	update_buffers();
 }
@@ -161,7 +219,7 @@ static void callback_idle(void)
 	timer = timer_now;
 	printf("FPS: %.2lf\n", 1e6 / duration);
 	//update
-	for(particles::Particle& particle : list)
+	for(particles::Particle& particle : list_particles)
 	{
 		particle.update(duration / 1e6);
 	}
@@ -173,8 +231,18 @@ static void callback_display(void)
 {
 	//clear
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//draw
-	glDrawElements(GL_TRIANGLES, 3 * list.size() * (particles::Particle::m_nv - 2), GL_UNSIGNED_INT, nullptr);
+	//particles
+	glUseProgram(program[0]);
+	glBindVertexArray(vao[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
+	glDrawElements(GL_TRIANGLES, 3 * list_particles.size() * (particles::Particle::m_nv - 2), GL_UNSIGNED_INT, nullptr);
+	//barriers
+	glUseProgram(program[0]);
+	glBindVertexArray(vao[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
+	glDrawElements(GL_LINES, 2 * list_barriers.size(), GL_UNSIGNED_INT, nullptr);
 	//buffers
 	glutSwapBuffers();
 }
@@ -185,8 +253,8 @@ static void callback_reshape(int width, int height)
 	//uniforms
 	::width = width;
 	::height = height;
-	glUniform1ui(glGetUniformLocation(program, "width"), width);
-	glUniform1ui(glGetUniformLocation(program, "height"), height);
+	glUniform1ui(glGetUniformLocation(program[0], "width"), width);
+	glUniform1ui(glGetUniformLocation(program[0], "height"), height);
 	//redraw
 	glutPostRedisplay();
 }
@@ -237,6 +305,7 @@ int main(int argc, char** argv)
 	}
 	//setup
 	setupGL();
+	add_barrier({-0.75, -0.50, 0}, {+0.75, -0.50, 0}, {1, 1, 1});
 	//callbacks
 	glutIdleFunc(callback_idle);
 	glutMouseFunc(callback_mouse);
@@ -248,6 +317,8 @@ int main(int argc, char** argv)
 	// glutMouseWheelFunc(callback_wheel);
 	//loop
 	glutMainLoop();
+	//cleanup
+	cleanupGL();
 	//return
 	return EXIT_SUCCESS;
 }

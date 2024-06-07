@@ -2,6 +2,7 @@
 #include <cmath>
 
 //particles
+#include "particles/inc/Barrier.hpp"
 #include "particles/inc/Particle.hpp"
 
 namespace particles
@@ -50,14 +51,28 @@ namespace particles
 	//physics
 	void Particle::update(double h)
 	{
-		//acceleration
+		//gravity
 		const double g = 9.81;
 		math::vec3 a = math::vec3(0, -g, 0);
+		//barriers
+		const double kb = 1e3;
+		for(const Barrier& barrier : *m_list_barriers)
+		{
+			const math::vec3 x1 = barrier.m_x1;
+			const math::vec3 x2 = barrier.m_x2;
+			const double t = (m_position - x1).inner(x2 - x1) / (x2 - x1).inner(x2 - x1);
+			const double d = (x1 + t * (x2 - x1) - m_position).norm();
+			if(t > 0 && t < 1 && d < m_radius)
+			{
+				a += kb * (m_radius - d) * math::vec3(0, 1, 0) / m_mass;
+			}
+		}
 		//update
 		m_velocity += h * a;
 		m_position += h * m_velocity + h * h * a;
 	}
 
 	//static
-	const std::vector<Particle>* Particle::m_list = nullptr;
+	const std::vector<Barrier>* Particle::m_list_barriers = nullptr;
+	const std::vector<Particle>* Particle::m_list_particles = nullptr;
 }

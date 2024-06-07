@@ -8,6 +8,11 @@
 
 namespace particles
 {
+	class Barrier;
+}
+
+namespace particles
+{
 	class Particle
 	{
 	public:
@@ -33,6 +38,7 @@ namespace particles
 		math::vec3 m_position;
 		math::vec3 m_velocity;
 		static const unsigned m_nv = 20;
-		static const std::vector<Particle>* m_list;
+		static const std::vector<Barrier>* m_list_barriers;
+		static const std::vector<Particle>* m_list_particles;
 	};
 }
