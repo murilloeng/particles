@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks":
+	[
+		{
+			"type": "shell",
+			"group": "build",
+			"label": "gnuplot",
+			"command": "gnuplot",
+			"args": ["-p","${file}"],
+			"options": 
+			{
+				"cwd": "${workspaceFolder}"
+			},
+			"presentation": 
+			{
+				"echo": false,
+				"clear": true,
+				"focus": true,
+				"reveal": "silent",
+				"panel": "dedicated",
+				"showReuseMessage": false,
+			}
+		}
+	]
+}

@@ -3,6 +3,7 @@
 !*.md
 !*.cpp
 !*.hpp
+!*.json
 !*.vert
 !*.frag
 !*Makefile

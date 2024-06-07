@@ -1,5 +1,8 @@
 #pragma once
 
+//std
+#include <vector>
+
 //math
 #include "Math/inc/linear/vec3.hpp"
 
@@ -10,17 +13,26 @@ namespace particles
 	public:
 		//constructors
 		Particle(void);
-		Particle(const math::vec3&, double);
 
 		//destructor
 		~Particle(void);
 
 		//draw
-		void draw(float*, unsigned*) const;
+		unsigned vbo_size(void) const;
+		unsigned ibo_size(void) const;
+		void draw(unsigned*, float*) const;
+
+		//physics
+		void update(double);
 
 		//data
+		double m_mass;
 		double m_radius;
-		float m_color[3];
+		unsigned m_index;
+		math::vec3 m_color;
 		math::vec3 m_position;
+		math::vec3 m_velocity;
+		static const unsigned m_nv = 20;
+		static const std::vector<Particle>* m_list;
 	};
 }

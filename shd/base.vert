@@ -3,10 +3,14 @@
 uniform uint width;
 uniform uint height;
 
+out vec3 vertex_color;
+
+layout(location = 1) in vec3 color;
 layout(location = 0) in vec2 position;
 
 void main(void)
 {
+	vertex_color = color;
 	const float w = width;
 	const float h = height;
 	const float m = min(w, h);

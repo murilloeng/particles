@@ -1,5 +1,8 @@
 //std
+#include <cmath>
 #include <string>
+#include <vector>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 
@@ -7,11 +10,19 @@
 #include "external/cpp/inc/GL/glew.h"
 #include "external/cpp/inc/GL/freeglut.h"
 
+//particles
+#include "particles/inc/Particle.hpp"
+
 //data
-GLuint program;
+static GLuint program;
+static unsigned width;
+static unsigned height;
+static const unsigned np_max = 1000;
+static std::vector<particles::Particle> list;
+static std::chrono::high_resolution_clock::time_point timer;
 
 //shaders
-bool load_file(std::string& source, const char* path)
+static bool load_file(std::string& source, const char* path)
 {
 	//open
 	FILE* file = fopen(path, "r");
@@ -26,7 +37,7 @@ bool load_file(std::string& source, const char* path)
 	//return
 	return true;
 }
-GLuint compile_shader(GLenum type, const char* source)
+static GLuint compile_shader(GLenum type, const char* source)
 {
 	//data
 	GLuint shader = glCreateShader(type);
@@ -47,7 +58,7 @@ GLuint compile_shader(GLenum type, const char* source)
 	//return
 	return shader;
 }
-GLuint create_program(const char* path_vertex, const char* path_fragment)
+static GLuint create_program(const char* path_vertex, const char* path_fragment)
 {
 	//data
 	std::string source_vertex, source_fragment;
@@ -81,18 +92,10 @@ GLuint create_program(const char* path_vertex, const char* path_fragment)
 }
 
 //setup
-void setupGL(void)
+static void setupGL(void)
 {
 	//data
 	GLuint VAO, VBO, IBO;
-	const float vbo_data[] = {
-		-0.5f, -0.5f,
-		 0.5f, -0.5f,
-		 0.0f,  0.5f
-	};
-	const unsigned ibo_data[] = {
-		0, 1, 2
-	};
 	//create
 	glGenBuffers(1, &VBO);
 	glGenBuffers(1, &IBO);
@@ -101,37 +104,111 @@ void setupGL(void)
 	glBindVertexArray(VAO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vbo_data), vbo_data, GL_STATIC_DRAW);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(ibo_data), ibo_data, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 5 * np_max * particles::Particle::m_nv * sizeof(float), nullptr, GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * np_max * (particles::Particle::m_nv - 2) * sizeof(unsigned), nullptr, GL_STATIC_DRAW);
 	//layout
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (unsigned*) (0 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (0 * sizeof(float)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (2 * sizeof(float)));
 	//program
 	program = create_program("shd/base.vert", "shd/base.frag");
+	//timer
+	timer = std::chrono::high_resolution_clock::now();
+}
+static void update_buffers(void)
+{
+	//data
+	const unsigned np = list.size();
+	const unsigned nv = particles::Particle::m_nv;
+	float* vbo_data = (float*) alloca(5 * np * nv * sizeof(float));
+	unsigned* ibo_data = (unsigned*) alloca(3 * np * nv * sizeof(float));
+	//buffers
+	for(unsigned i = 0; i < list.size(); i++)
+	{
+		list[i].draw(ibo_data, vbo_data);
+	}
+	//transfer
+	glBufferSubData(GL_ARRAY_BUFFER, 0, 5 * np * nv * sizeof(float), vbo_data);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 3 * np * nv * sizeof(unsigned), ibo_data);
 }
 
+//particles
+static void add_particle(double radius, math::vec3 color, math::vec3 position, math::vec3 velocity)
+{
+	//data
+	particles::Particle particle;
+	const unsigned np = list.size();
+	//setup
+	particle.m_index = np;
+	particle.m_color = color;
+	particle.m_radius = radius;
+	particle.m_position = position;
+	particle.m_velocity = velocity;
+	//list
+	list.push_back(particle);
+	//buffers
+	update_buffers();
+}
 
 //callbacks
-void callback_display(void)
+static void callback_idle(void)
+{
+	//clock
+	std::chrono::high_resolution_clock::time_point timer_now = std::chrono::high_resolution_clock::now();
+	int64_t duration = std::chrono::duration_cast<std::chrono::microseconds>(timer_now - timer).count();
+	//timer
+	timer = timer_now;
+	printf("FPS: %.2lf\n", 1e6 / duration);
+	//update
+	for(particles::Particle& particle : list)
+	{
+		particle.update(duration / 1e6);
+	}
+	update_buffers();
+	//draw
+	glutPostRedisplay();
+}
+static void callback_display(void)
 {
 	//clear
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	//draw
-	glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, nullptr);
+	glDrawElements(GL_TRIANGLES, 3 * list.size() * (particles::Particle::m_nv - 2), GL_UNSIGNED_INT, nullptr);
 	//buffers
 	glutSwapBuffers();
 }
-void callback_reshape(int width, int height)
+static void callback_reshape(int width, int height)
 {
 	//viewport
 	glViewport(0, 0, width, height);
 	//uniforms
+	::width = width;
+	::height = height;
 	glUniform1ui(glGetUniformLocation(program, "width"), width);
 	glUniform1ui(glGetUniformLocation(program, "height"), height);
 	//redraw
 	glutPostRedisplay();
 }
-void callback_keyboard(unsigned char key, int x1, int x2)
+static void callback_mouse(int button, int state, int x1, int x2)
+{
+	//data
+	static unsigned color_index = 0;
+	const math::vec3 colors[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+	//add particle
+	if(state == GLUT_DOWN)
+	{
+		const float w = width;
+		const float h = height;
+		const float m = fmin(w, h);
+		const float p1 = w / m * (2 * x1 / w - 1);
+		const float p2 = h / m * (1 - 2 * x2 / h);
+		add_particle(0.02, colors[color_index], {p1, p2, 0}, {0, 0, 0});
+		glutPostRedisplay();
+		color_index = (color_index + 1) % 3;
+	}
+}
+static void callback_keyboard(unsigned char key, int x1, int x2)
 {
 	if(key == 27)
 	{
@@ -139,6 +216,7 @@ void callback_keyboard(unsigned char key, int x1, int x2)
 	}
 }
 
+//main
 int main(int argc, char** argv)
 {
 	//setup
@@ -150,20 +228,21 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
 	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 	//window
-	glutCreateWindow("Canvas");
+	glutCreateWindow("Particles");
 	//glew
 	if(glewInit() != GLEW_OK)
 	{
 		fprintf(stderr, "Error: can't setup glew!\n");
 		exit(EXIT_FAILURE);
 	}
+	//setup
 	setupGL();
 	//callbacks
+	glutIdleFunc(callback_idle);
+	glutMouseFunc(callback_mouse);
 	glutDisplayFunc(callback_display);
 	glutReshapeFunc(callback_reshape);
 	glutKeyboardFunc(callback_keyboard);
-	// glutIdleFunc(callback_idle);
-	// glutMouseFunc(callback_mouse);
 	// glutMotionFunc(callback_motion);
 	// glutSpecialFunc(callback_special);
 	// glutMouseWheelFunc(callback_wheel);
