@@ -105,8 +105,8 @@ static void setupGL(void)
 	glBindVertexArray(vao[0]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
-	glBufferData(GL_ARRAY_BUFFER, 5 * np_max * particles::Particle::m_nv * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * np_max * (particles::Particle::m_nv - 2) * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 10 * nb_max * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2 * nb_max * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
 	//layout
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
@@ -116,8 +116,8 @@ static void setupGL(void)
 	glBindVertexArray(vao[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
-	glBufferData(GL_ARRAY_BUFFER, 10 * nb_max * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2 * nb_max * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 5 * np_max * particles::Particle::m_nv * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * np_max * (particles::Particle::m_nv - 2) * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
 	//layout
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
@@ -136,35 +136,6 @@ static void cleanupGL(void)
 	glDeleteProgram(program[1]);
 	glDeleteVertexArrays(3, vao);
 }
-static void update_buffers(void)
-{
-	//data
-	const unsigned nb = list_barriers.size();
-	const unsigned np = list_particles.size();
-	const unsigned nv = particles::Particle::m_nv;
-	float* vbo_barriers = (float*) alloca(10 * nb * sizeof(float));
-	float* vbo_particles = (float*) alloca(5 * nv * np * sizeof(float));
-	unsigned* ibo_barriers = (unsigned*) alloca(2 * nb * sizeof(unsigned));
-	unsigned* ibo_particles = (unsigned*) alloca(3 * (nv - 2) * np * sizeof(unsigned));
-	//barriers
-	for(unsigned i = 0; i < list_barriers.size(); i++)
-	{
-		list_barriers[i].draw(ibo_barriers, vbo_barriers);
-	}
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, 10 * nb * sizeof(float), vbo_barriers);
-	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 2 * nb * sizeof(unsigned), ibo_barriers);
-	//particles
-	for(unsigned i = 0; i < list_particles.size(); i++)
-	{
-		list_particles[i].draw(ibo_particles, vbo_particles);
-	}
-	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, 5 * np * nv * sizeof(float), vbo_particles);
-	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0, 3 * (nv - 2) * np * sizeof(unsigned), ibo_particles);
-}
 
 //lists
 static void add_barrier(math::vec3 x1, math::vec3 x2, math::vec3 color)
@@ -177,6 +148,8 @@ static void add_barrier(math::vec3 x1, math::vec3 x2, math::vec3 color)
 	barrier.m_x2 = x2;
 	barrier.m_index = nb;
 	barrier.m_color = color;
+	//buffers
+	barrier.setup_buffers(ibo[0], vbo[0]);
 	//list
 	list_barriers.push_back(barrier);
 }
@@ -193,6 +166,8 @@ static void add_particle(double radius, math::vec3 color, math::vec3 position, m
 	particle.m_velocity = velocity;
 	particle.m_list_barriers = &list_barriers;
 	particle.m_list_particles = &list_particles;
+	//buffers
+	particle.setup_buffers(ibo[1], vbo[1]);
 	//list
 	list_particles.push_back(particle);
 }
@@ -201,17 +176,17 @@ static void add_particle(double radius, math::vec3 color, math::vec3 position, m
 static void callback_idle(void)
 {
 	//clock
-	std::chrono::high_resolution_clock::time_point timer_now = std::chrono::high_resolution_clock::now();
-	int64_t duration = std::chrono::duration_cast<std::chrono::microseconds>(timer_now - timer).count();
+	using namespace std::chrono;
+	high_resolution_clock::time_point timer_now = high_resolution_clock::now();
+	int64_t duration = duration_cast<microseconds>(timer_now - timer).count();
 	//timer
 	timer = timer_now;
 	printf("FPS: %.2lf\n", 1e6 / duration);
 	//update
 	for(particles::Particle& particle : list_particles)
 	{
-		particle.update(duration / 1e6);
+		particle.update(duration / 1e6, vbo[1]);
 	}
-	update_buffers();
 	//draw
 	glutPostRedisplay();
 }
@@ -223,18 +198,18 @@ static void callback_display(void)
 	const unsigned nv = particles::Particle::m_nv;
 	//clear
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//particles
+	//barriers
 	glUseProgram(program[0]);
 	glBindVertexArray(vao[0]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
-	glDrawElements(GL_TRIANGLES, 3 * np * (nv - 2), GL_UNSIGNED_INT, nullptr);
-	//barriers
+	glDrawElements(GL_LINES, 2 * nb, GL_UNSIGNED_INT, nullptr);
+	//particles
 	glUseProgram(program[0]);
 	glBindVertexArray(vao[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
-	glDrawElements(GL_LINES, 2 * nb, GL_UNSIGNED_INT, nullptr);
+	glDrawElements(GL_TRIANGLES, 3 * (nv - 2) * np, GL_UNSIGNED_INT, nullptr);
 	//buffers
 	glutSwapBuffers();
 }
