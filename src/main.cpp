@@ -20,7 +20,7 @@ static unsigned width;
 static unsigned height;
 static clock_t timer_cpu;
 static const unsigned nb_max = 100;
-static const unsigned np_max = 1000;
+static const unsigned np_max = 200000;
 static GLuint program[2], vao[3], vbo[3], ibo[3];
 static std::vector<particles::Barrier> list_barriers;
 static std::vector<particles::Particle> list_particles;
@@ -187,11 +187,26 @@ static void callback_idle(void)
 	//timer
 	timer_cpu = timer_cpu_now;
 	timer_real = timer_real_now;
-	printf("FPS: %.2lf particles: %5ld\n", 1.0 / duration_cpu, list_particles.size());
+	printf("FPS: %.2e particles: %5ld\n", 1.0 / duration_cpu, list_particles.size());
+	//create
+	static unsigned index = 0;
+	const math::vec3 colors[] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+	add_particle(0.02, colors[index % 3], {-0.73 + 0.04 * index, 0.75, 0}, {0, 0, 0});
+	index = (index + 1) % 36;
 	//update
+	const unsigned np = list_particles.size();
+	const unsigned nv = particles::Particle::m_nv;
+	float* vbo_data = (float*) alloca(5 * nv * np * sizeof(float));
 	for(particles::Particle& particle : list_particles)
 	{
-		particle.update(duration_real / 1e6, vbo[1]);
+		particle.update(duration_real / 1e6, vbo_data);
+	}
+	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, 5 * nv * np * sizeof(float), vbo_data);
+	//check
+	if(list_particles.size() >= 1000)
+	{
+		glutLeaveMainLoop();
 	}
 	//draw
 	glutPostRedisplay();

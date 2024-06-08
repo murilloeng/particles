@@ -23,7 +23,7 @@ namespace particles
 		~Particle(void);
 
 		//physics
-		void update(double, GLuint);
+		void update(double, float*);
 
 		//buffers
 		void setup_buffers(GLuint, GLuint);

@@ -24,7 +24,7 @@ namespace particles
 	}
 
 	//physics
-	void Particle::update(double h, GLuint vbo)
+	void Particle::update(double h, float* vbo_data)
 	{
 		//data
 		const double g = 9.81;
@@ -36,20 +36,24 @@ namespace particles
 		m_position += dx;
 		m_velocity += h / s * a;
 		//barriers
-		// for(const Barrier& barrier : *m_list_barriers)
-		// {
-		// 	//data
-		// 	const math::vec3 x1 = barrier.m_x1;
-		// 	const math::vec3 x2 = barrier.m_x2;
-		// }
+		for(const Barrier& barrier : *m_list_barriers)
+		{
+			//data
+			const math::vec3 x2 = m_position;
+			const math::vec3 y1 = barrier.m_x1;
+			const math::vec3 y2 = barrier.m_x2;
+			const math::vec3 x1 = m_position - dx;
+			
+		}
 		//buffers
 		for(unsigned i = 0; i < m_nv; i++)
 		{
-			m_vbo_data[5 * i + 0] += dx[0];
-			m_vbo_data[5 * i + 1] += dx[1];
+			vbo_data[5 * m_nv * m_index + 5 * i + 2] = m_vbo_data[5 * i + 2];
+			vbo_data[5 * m_nv * m_index + 5 * i + 3] = m_vbo_data[5 * i + 3];
+			vbo_data[5 * m_nv * m_index + 5 * i + 4] = m_vbo_data[5 * i + 4];
+			vbo_data[5 * m_nv * m_index + 5 * i + 0] = m_vbo_data[5 * i + 0] += dx[0];
+			vbo_data[5 * m_nv * m_index + 5 * i + 1] = m_vbo_data[5 * i + 1] += dx[1];
 		}
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferSubData(GL_ARRAY_BUFFER, 5 * m_nv * m_index * sizeof(float), 5 * m_nv * sizeof(float), m_vbo_data);
 	}
 
 	//buffers
