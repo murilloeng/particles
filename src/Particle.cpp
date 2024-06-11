@@ -1,5 +1,6 @@
 //std
 #include <cmath>
+#include <cstring>
 
 //ext
 #include "external/cpp/inc/GL/glew.h"
@@ -30,56 +31,35 @@ namespace particles
 		const double g = 9.81;
 		const double s = m_status ? 2 : 1;
 		math::vec3 a = math::vec3(0, -g, 0);
-		const math::vec3 dx = h * m_velocity + h * h / s * a;
 		//update
-		m_status = false;
-		m_position += dx;
+		m_position += h * m_velocity + h * h / s * a;
 		m_velocity += h / s * a;
-		//barriers
-		for(const Barrier& barrier : *m_list_barriers)
-		{
-			//data
-			const math::vec3 x2 = m_position;
-			const math::vec3 y1 = barrier.m_x1;
-			const math::vec3 y2 = barrier.m_x2;
-			const math::vec3 x1 = m_position - dx;
-			
-		}
 		//buffers
-		for(unsigned i = 0; i < m_nv; i++)
-		{
-			vbo_data[5 * m_nv * m_index + 5 * i + 2] = m_vbo_data[5 * i + 2];
-			vbo_data[5 * m_nv * m_index + 5 * i + 3] = m_vbo_data[5 * i + 3];
-			vbo_data[5 * m_nv * m_index + 5 * i + 4] = m_vbo_data[5 * i + 4];
-			vbo_data[5 * m_nv * m_index + 5 * i + 0] = m_vbo_data[5 * i + 0] += dx[0];
-			vbo_data[5 * m_nv * m_index + 5 * i + 1] = m_vbo_data[5 * i + 1] += dx[1];
-		}
+		vbo_data[6 * m_index + 5] = m_radius;
+		vbo_data[6 * m_index + 2] = m_color[0];
+		vbo_data[6 * m_index + 3] = m_color[1];
+		vbo_data[6 * m_index + 4] = m_color[2];
+		vbo_data[6 * m_index + 0] = m_position[0];
+		vbo_data[6 * m_index + 1] = m_position[1];
 	}
 
 	//buffers
 	void Particle::setup_buffers(GLuint ibo, GLuint vbo)
 	{
-		//ibo data
-		for(unsigned i = 0; i < m_nv - 2; i++)
-		{
-			m_ibo_data[3 * i + 0] = m_nv * m_index + 0;
-			m_ibo_data[3 * i + 1] = m_nv * m_index + i + 1;
-			m_ibo_data[3 * i + 2] = m_nv * m_index + i + 2;
-		}
-		//vbo data
-		for(unsigned i = 0; i < m_nv; i++)
-		{
-			m_vbo_data[5 * i + 2] = m_color[0];
-			m_vbo_data[5 * i + 3] = m_color[1];
-			m_vbo_data[5 * i + 4] = m_color[2];
-			m_vbo_data[5 * i + 0] = m_position[0] + m_radius * cos(2 * M_PI * i / m_nv);
-			m_vbo_data[5 * i + 1] = m_position[1] + m_radius * sin(2 * M_PI * i / m_nv);
-		}
+		//data
+		float vbo_data[6];
+		vbo_data[5] = m_radius;
+		vbo_data[2] = m_color[0];
+		vbo_data[3] = m_color[1];
+		vbo_data[4] = m_color[2];
+		vbo_data[0] = m_position[0];
+		vbo_data[1] = m_position[1];
+		const unsigned ibo_data = m_index;
 		//transfer
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-		glBufferSubData(GL_ARRAY_BUFFER, 5 * m_nv * m_index * sizeof(float), 5 * m_nv * sizeof(float), m_vbo_data);
-		glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 3 * (m_nv - 2) * m_index * sizeof(unsigned), 3 * (m_nv - 2) * sizeof(unsigned), m_ibo_data);
+		glBufferSubData(GL_ARRAY_BUFFER, 6 * m_index * sizeof(float), 6 * sizeof(float), vbo_data);
+		glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, m_index * sizeof(unsigned), sizeof(unsigned), &ibo_data);
 	}
 
 	//static

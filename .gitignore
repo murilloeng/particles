@@ -6,5 +6,6 @@
 !*.json
 !*.vert
 !*.frag
+!*.geom
 !*Makefile
 !.gitignore

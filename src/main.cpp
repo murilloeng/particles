@@ -58,25 +58,30 @@ static GLuint compile_shader(GLenum type, const char* source)
 	{
 		char info[512];
 		glGetShaderInfoLog(shader, 512, nullptr, info);
-		fprintf(stderr, "Shader compilation error: %s\n", info);
+		fprintf(stderr, "Shader %x compilation error: %s\n", type, info);
+		exit(EXIT_FAILURE);
 	}
 	//return
 	return shader;
 }
-static GLuint create_program(const char* path_vertex, const char* path_fragment)
+static GLuint create_program(const char* path_vertex, const char* path_geometry, const char* path_fragment)
 {
 	//data
-	std::string source_vertex, source_fragment;
+	GLuint shader_vertex, shader_geometry, shader_fragment;
+	std::string source_vertex, source_fragment, source_geometry;
 	//sources
 	load_file(source_vertex, path_vertex);
 	load_file(source_fragment, path_fragment);
+	if(path_geometry) load_file(source_geometry, path_geometry);
 	//shaders
-	GLuint shader_vertex = compile_shader(GL_VERTEX_SHADER, source_vertex.c_str());
-	GLuint shader_fragment = compile_shader(GL_FRAGMENT_SHADER, source_fragment.c_str());
+	shader_vertex = compile_shader(GL_VERTEX_SHADER, source_vertex.c_str());
+	shader_fragment = compile_shader(GL_FRAGMENT_SHADER, source_fragment.c_str());
+	if(path_geometry) shader_geometry = compile_shader(GL_GEOMETRY_SHADER, source_geometry.c_str());
 	//program
 	GLuint program = glCreateProgram();
 	glAttachShader(program, shader_vertex);
 	glAttachShader(program, shader_fragment);
+	if(path_geometry) glAttachShader(program, shader_geometry);
 	//check
 	GLint success;
 	glLinkProgram(program);
@@ -87,11 +92,13 @@ static GLuint create_program(const char* path_vertex, const char* path_fragment)
 		char info[512];
 		glGetProgramInfoLog(program, 512, nullptr, info);
 		fprintf(stderr, "Program linking error: %s\n", info);
+		exit(EXIT_FAILURE);
 	}
 	//delete
 	glUseProgram(program);
 	glDeleteShader(shader_vertex);
 	glDeleteShader(shader_fragment);
+	if(path_geometry) glDeleteShader(shader_geometry);
 	//return
 	return program;
 }
@@ -114,19 +121,22 @@ static void setupGL(void)
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (0 * sizeof(float)));
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (2 * sizeof(float)));
-	//bind
+	//bind particles
 	glBindVertexArray(vao[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
-	glBufferData(GL_ARRAY_BUFFER, 5 * np_max * particles::Particle::m_nv * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * np_max * (particles::Particle::m_nv - 2) * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
-	//layout
+	glBufferData(GL_ARRAY_BUFFER, 6 * np_max * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, np_max * sizeof(unsigned), nullptr, GL_DYNAMIC_DRAW);
+	//layout particles
 	glEnableVertexAttribArray(0);
 	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (0 * sizeof(float)));
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (unsigned*) (2 * sizeof(float)));
-	//program
-	program[0] = create_program("shd/base.vert", "shd/base.frag");
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (unsigned*) (0 * sizeof(float)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (unsigned*) (2 * sizeof(float)));
+	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (unsigned*) (5 * sizeof(float)));
+	//programs
+	program[0] = create_program("shd/barriers.vert", nullptr, "shd/barriers.frag");
+	program[1] = create_program("shd/particles.vert", "shd/particles.geom", "shd/particles.frag");
 	//timer
 	timer_cpu = clock();
 	timer_real = std::chrono::high_resolution_clock::now();
@@ -151,12 +161,12 @@ static void add_barrier(math::vec3 x1, math::vec3 x2, math::vec3 color)
 	barrier.m_x2 = x2;
 	barrier.m_index = nb;
 	barrier.m_color = color;
-	//buffers
-	barrier.setup_buffers(ibo[0], vbo[0]);
 	//list
 	list_barriers.push_back(barrier);
+	//buffers
+	barrier.setup_buffers(ibo[0], vbo[0]);
 }
-static void add_particle(double radius, math::vec3 color, math::vec3 position, math::vec3 velocity)
+static void add_particle(math::vec3 position, math::vec3 velocity, math::vec3 color, double radius)
 {
 	//data
 	particles::Particle particle;
@@ -169,10 +179,10 @@ static void add_particle(double radius, math::vec3 color, math::vec3 position, m
 	particle.m_velocity = velocity;
 	particle.m_list_barriers = &list_barriers;
 	particle.m_list_particles = &list_particles;
-	//buffers
-	particle.setup_buffers(ibo[1], vbo[1]);
 	//list
 	list_particles.push_back(particle);
+	//buffers
+	particle.setup_buffers(ibo[1], vbo[1]);
 }
 
 //callbacks
@@ -191,18 +201,17 @@ static void callback_idle(void)
 	//create
 	static unsigned index = 0;
 	const math::vec3 colors[] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-	add_particle(0.02, colors[index % 3], {-0.73 + 0.04 * index, 0.75, 0}, {0, 0, 0});
+	add_particle({-0.73 + 0.04 * index, 0.75, 0}, {0, 0, 0}, colors[index % 3], 0.02);
 	index = (index + 1) % 36;
 	//update
 	const unsigned np = list_particles.size();
-	const unsigned nv = particles::Particle::m_nv;
-	float* vbo_data = (float*) alloca(5 * nv * np * sizeof(float));
+	float* vbo_data = (float*) alloca(6 * np * sizeof(float));
 	for(particles::Particle& particle : list_particles)
 	{
 		particle.update(duration_real / 1e6, vbo_data);
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, 5 * nv * np * sizeof(float), vbo_data);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, 6 * np * sizeof(float), vbo_data);
 	//check
 	if(list_particles.size() >= 1000)
 	{
@@ -216,7 +225,6 @@ static void callback_display(void)
 	//data
 	const unsigned nb = list_barriers.size();
 	const unsigned np = list_particles.size();
-	const unsigned nv = particles::Particle::m_nv;
 	//clear
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	//barriers
@@ -226,11 +234,11 @@ static void callback_display(void)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[0]);
 	glDrawElements(GL_LINES, 2 * nb, GL_UNSIGNED_INT, nullptr);
 	//particles
-	glUseProgram(program[0]);
+	glUseProgram(program[1]);
 	glBindVertexArray(vao[1]);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo[1]);
-	glDrawElements(GL_TRIANGLES, 3 * (nv - 2) * np, GL_UNSIGNED_INT, nullptr);
+	glDrawElements(GL_POINTS, np, GL_UNSIGNED_INT, nullptr);
 	//buffers
 	glutSwapBuffers();
 }
@@ -241,8 +249,14 @@ static void callback_reshape(int width, int height)
 	//uniforms
 	::width = width;
 	::height = height;
+	//program barriers
+	glUseProgram(program[0]);
 	glUniform1ui(glGetUniformLocation(program[0], "width"), width);
 	glUniform1ui(glGetUniformLocation(program[0], "height"), height);
+	//program particles
+	glUseProgram(program[1]);
+	glUniform1ui(glGetUniformLocation(program[1], "width"), width);
+	glUniform1ui(glGetUniformLocation(program[1], "height"), height);
 	//redraw
 	glutPostRedisplay();
 }
@@ -259,7 +273,7 @@ static void callback_mouse(int button, int state, int x1, int x2)
 		const float m = fmin(w, h);
 		const float p1 = w / m * (2 * x1 / w - 1);
 		const float p2 = h / m * (1 - 2 * x2 / h);
-		add_particle(0.02, colors[color_index], {p1, p2, 0}, {0, 0, 0});
+		add_particle({p1, p2, 0}, {0, 0, 0}, colors[color_index], 0.02);
 		glutPostRedisplay();
 		color_index = (color_index + 1) % 3;
 	}

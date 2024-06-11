@@ -10,9 +10,11 @@ layout(location = 0) in vec2 position;
 
 void main(void)
 {
-	vertex_color = color;
+	//data
 	const float w = width;
 	const float h = height;
 	const float m = min(w, h);
+	//outputs
+	vertex_color = color;
 	gl_Position = vec4(vec2(m / w, m / h) * position, 0.0, 1.0);
 }
